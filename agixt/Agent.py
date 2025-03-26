@@ -33,6 +33,9 @@ import base64
 import jwt
 import os
 import re
+import logging
+from sqlalchemy.orm import joinedload # Ensure joinedload is imported if used elsewhere, add if needed
+
 
 logging.basicConfig(
     level=getenv("LOG_LEVEL"),
@@ -511,9 +514,29 @@ class Agent:
                     ac.command_id == command.id and ac.state for ac in agent_commands
                 )
             for setting in agent_settings:
-                if setting.value == "":
-                    continue
                 config["settings"][setting.name] = setting.value
+
+            # Check for Solana Wallet and create if not exists
+            if "SOLANA_WALLET_ADDRESS" not in config["settings"]:
+                try:
+                    private_key, passphrase, address = create_solana_wallet()
+                    wallet_settings = {
+                        "SOLANA_WALLET_API_KEY": private_key,
+                        "SOLANA_WALLET_PASSPHRASE_API_KEY": passphrase,
+                        "SOLANA_WALLET_ADDRESS": address,
+                    }
+                    for key, value in wallet_settings.items():
+                        new_setting = AgentSettingModel(
+                            agent_id=agent.id, name=key, value=value
+                        )
+                        session.add(new_setting)
+                        config["settings"][key] = value  # Update local config immediately
+                    session.commit()
+                    logging.info(f"Created and saved Solana wallet for agent {self.agent_name}")
+                except Exception as e:
+                    logging.error(f"Failed to create Solana wallet for agent {self.agent_name}: {e}")
+                    # Decide if we should raise an error or just log and continue
+
             user_settings = self.get_registration_requirement_settings()
             for key, value in user_settings.items():
                 config["settings"][key] = value
