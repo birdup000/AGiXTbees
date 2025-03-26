@@ -36,6 +36,7 @@ import re
 import logging
 from sqlalchemy.orm import joinedload # Ensure joinedload is imported if used elsewhere, add if needed
 
+from extensions.solana_wallet import create_solana_wallet
 
 logging.basicConfig(
     level=getenv("LOG_LEVEL"),
